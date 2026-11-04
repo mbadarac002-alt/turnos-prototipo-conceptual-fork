@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+tzdata
+pytest
+httpx
