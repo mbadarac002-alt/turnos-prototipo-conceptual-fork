@@ -150,3 +150,59 @@ F0 Preparación → F1 Dominio → F2 Estado → F3 UI compartida → F4 Cliente
 ```
 
 F4 y F5 pueden avanzar en paralelo una vez cerrada la Fase 3, porque ambas consumen el mismo `store` y no se tocan entre sí.
+
+---
+
+# Fase 2 — Backend independiente (spec §11 v0.3.0 · plan §8 a §14)
+
+Las fases 0 a 8 corresponden al prototipo en memoria (Fase 1 del plan). Las siguientes construyen la arquitectura de 3 capas sobre el modelo simplificado de una tabla `turnos`.
+
+## Fase 9 — Alineación de documentos
+
+- [x] 9.1 Reescribir spec §11 para el modelo simplificado (`turnos`, `HORARIO_NO_DISPONIBLE`, `CANCELACION_FUERA_DE_VENTANA`, `CANCELADO_CLIENTE`) y subir el spec a v0.3.0.
+- [x] 9.2 Actualizar criterios 9–11 (§8), decisiones D-04 y D-06 a D-08 (§9) y trazabilidad (§10).
+- [x] 9.3 Reescribir plan §8 a §14 y subirlo a v0.3.0.
+- [x] 9.4 Archivar el backend del modelo completo en `backend-v0.2-archivado/` (no se borra).
+
+**Salida:** spec, plan y tareas coherentes entre sí.
+**Hecho cuando:** ningún documento menciona entidades o códigos que el contrato de §11 no define.
+
+---
+
+## Fase 10 — Backend (`backend/main.py`)
+
+- [x] 10.1 FastAPI con `CORSMiddleware` (`allow_origins=["*"]`).
+- [x] 10.2 Conexión SQLite (`turnos.db`) con `sqlite3` nativo; creación automática de la tabla `turnos` y del índice único parcial al iniciar (lifespan).
+- [x] 10.3 Modelos Pydantic de entrada y salida con los campos de spec §11.2; tipado estricto.
+- [x] 10.4 `GET /api/turnos`: devuelve todos los turnos ordenados por `fecha_hora` (200).
+- [x] 10.5 `POST /api/turnos`: valida; INV-02 → `409 HORARIO_NO_DISPONIBLE`; inserta y devuelve 201 con `Location`.
+- [x] 10.6 `POST /api/turnos/{id}/cancelar`: INV-01 → `409 CANCELACION_FUERA_DE_VENTANA` si faltan menos de 2 h; si no, estado `CANCELADO_CLIENTE` (200).
+- [x] 10.7 Errores de dominio con formato `{"detail": {"code", "message"}}`.
+- [x] 10.8 `requirements.txt`.
+
+**Salida:** `backend/main.py` ejecutable con `uvicorn main:app --reload`.
+**Hecho cuando:** `/docs` lista los tres endpoints y responde según el contrato.
+
+---
+
+## Fase 11 — Verificación del backend
+
+- [x] 11.1 Tests de INV-02: mismo horario rechazado; horario distinto aceptado; slot liberado tras cancelar.
+- [x] 11.2 Tests de INV-01: 3 h, 2 h exactas y 1 h 59 min; turno ya pasado.
+- [x] 11.3 Test de concurrencia con hilos: una sola solicitud gana.
+- [x] 11.4 Test de atomicidad (criterio 10) y de persistencia al reiniciar (criterios 9 y 11).
+- [x] 11.5 Prueba con servidor uvicorn real: crear, matar el proceso, reiniciar, listar.
+- [x] 11.6 `mypy --strict main.py` sin errores.
+
+**Salida:** suite de tests verde.
+**Hecho cuando:** los criterios 1, 2, 5, 9, 10 y 11 de spec §8 pasan.
+
+---
+
+## Fase 12 — Integración con el frontend (pendiente)
+
+- [ ] 12.1 Adaptar `index.html` para consumir la API y eliminar el estado local de turnos y el reloj simulado como fuente de decisión.
+- [ ] 12.2 Mostrar `detail.code` y `detail.message` del backend.
+- [ ] 12.3 Verificar de extremo a extremo con el backend levantado.
+
+**Hecho cuando:** reservar y cancelar desde la UI persiste tras recargar la página.

@@ -2,12 +2,21 @@
 
 | Campo | Valor |
 |---|---|
-| Versión | 0.1.0 (MVP) |
+| Versión | 0.3.1 (MVP · Fase 2) |
 | Estado | Borrador para revisión |
 | Metodología | Spec-Driven Development (SDD) |
-| Fecha | 2026-10-26 |
+| Fecha | 2026-11-04 |
 
 > Este documento es el **contrato del sistema**. Todo código, test y decisión de diseño debe poder trazarse a una sección de este archivo. Si el código y la spec divergen, se corrige primero la spec y luego el código.
+
+### Historial de versiones
+
+| Versión | Fecha | Cambios |
+|---|---|---|
+| 0.1.0 | 2026-10-26 | Versión inicial del MVP (prototipo en memoria). |
+| 0.2.0 | 2026-11-03 | Fase 2 (arquitectura desacoplada). Se agrega **INV-03** (§3), el **contrato REST** (§11), el mapeo de persistencia (§11.5), los criterios de aceptación 9–11 (§8), los errores `REASON_REQUIRED` y `SERVICE_UNAVAILABLE` (§7, ya usados por el prototipo), las decisiones D-06 a D-08 (§9) y la actualización de D-04. **No se modificó el texto de RN-01 ni RN-02 ni el modelo de datos de §4.** |
+| 0.3.0 | 2026-11-03 | La Fase 2 adopta un **modelo simplificado** de una sola tabla `turnos` (`id`, `cliente_nombre`, `cliente_email`, `servicio`, `fecha_hora`, `estado`). Se reescribe §11 completo (contrato, modelo, errores propios `HORARIO_NO_DISPONIBLE`, `CANCELACION_FUERA_DE_VENTANA`, `TURNO_NO_CANCELABLE`, `TURNO_NO_ENCONTRADO`, `FECHA_INVALIDA`, estado `CANCELADO_CLIENTE`, persistencia con índice único parcial). Se actualizan criterios 9–11 (§8), D-04 y D-06 a D-08 (§9) y la trazabilidad (§10). Las reglas de §3 y el modelo de §4 **no cambian**; quedan como objetivo del producto completo y fuera de la Fase 2. |
+| 0.3.1 | 2026-11-04 | Tras probar el backend localmente (27 tests + servidor real), se documenta en §11.1 el comportamiento ya implementado: truncado de microsegundos, fecha sin zona = `FECHA_INVALIDA` y rechazo `422` de campos no definidos (`id`, `estado`). Sin cambios de contrato ni de reglas. Se agrega §11.8 (cliente de referencia `reservas.html`). |
 
 Palabras clave normativas: **DEBE** (obligatorio), **NO DEBE** (prohibido), **PUEDE** (opcional), según RFC 2119.
 
@@ -105,6 +114,14 @@ Leyenda: ✅ permitido · ❌ prohibido · 🔒 solo sobre recursos propios
 
 Las siguientes reglas son **no negociables**: se validan en el backend, y la base de datos DEBE reforzarlas con restricciones cuando sea técnicamente posible. Ninguna regla puede ser omitida por la UI ni por un rol (salvo excepción explícita indicada).
 
+**Nomenclatura.** Desde la v0.2.0 las reglas invariantes también se citan con el prefijo `INV-`. Los identificadores `RN-xx` se conservan sin cambios para no romper la trazabilidad (§10, historias de usuario, tareas):
+
+| Alias | Regla | Estado |
+|---|---|---|
+| INV-01 | RN-01 — Ventana mínima de cancelación (≥ 2 h) | Inmutable |
+| INV-02 | RN-02 — Prohibición de doble reserva y solapamiento | Inmutable |
+| INV-03 | Persistencia real (ver abajo) | Nueva en v0.2.0 |
+
 ### RN-01 — Ventana mínima de cancelación
 
 - Un `CLIENTE` NO DEBE cancelar un turno si faltan **menos de 2 horas** para su `inicio`.
@@ -167,6 +184,15 @@ Estados: `CONFIRMADO` → `CANCELADO` | `COMPLETADO` | `AUSENTE`.
 ### RN-08 — Trazabilidad
 
 - Toda creación, cancelación y cambio de estado DEBE registrar: actor, rol, instante UTC y motivo (si aplica) en un log de auditoría inmutable.
+
+### INV-03 — Persistencia real
+
+- Los turnos DEBEN persistir en una base de datos relacional, no en la memoria del proceso del cliente (navegador) ni del servidor.
+- **Atomicidad**: crear o cancelar un turno es una única transacción. En el modelo completo se confirman juntos el cambio sobre `Turno` y su registro de auditoría (RN-08); en la Fase 2 (sin auditoría, §11) es una única sentencia atómica. Una operación rechazada NO DEBE dejar rastro parcial en `Turno`.
+- **Durabilidad**: un turno confirmado DEBE sobrevivir al reinicio del backend y al de la base de datos. Tras el reinicio, `GET /api/turnos` DEBE devolver exactamente el mismo conjunto de turnos, con los mismos estados.
+- **Fuente única de verdad**: el estado de los turnos se lee y escribe únicamente a través de la API (§11). El frontend NO DEBE conservar una copia autoritativa.
+- INV-01 e INV-02 DEBEN seguir cumpliéndose sobre los datos persistidos; el motor elegido DEBE reforzar INV-02 a nivel de base de datos (ver RN-02 y §11.7).
+- No se admite un "reinicio de datos" que borre turnos desde la API; el historial es inmutable (RN-06).
 
 ---
 
@@ -340,6 +366,8 @@ Alcance: el `PROFESIONAL` ve solo las suyas; el `ADMIN` ve las globales y por pr
 | `INVALID_STATE_TRANSITION` | 409 | RN-06 |
 | `SERVICE_HAS_ACTIVE_BOOKINGS` | 409 | RN-07 |
 | `FORBIDDEN` / `NOT_FOUND` | 403 / 404 | RBAC-01, RBAC-02 |
+| `REASON_REQUIRED` | 422 | RN-01 (motivo obligatorio para Profesional/Admin) |
+| `SERVICE_UNAVAILABLE` | 409 | RN-07 (servicio inactivo, sin nuevas reservas) |
 
 ---
 
@@ -353,6 +381,11 @@ Alcance: el `PROFESIONAL` ve solo las suyas; el `ADMIN` ve las globales y por pr
 6. **Contacto inválido**: *Dado* un cliente sin teléfono válido, *cuando* intenta reservar, *entonces* `INVALID_CONTACT`.
 7. **Aislamiento**: *Dado* el turno T del cliente A, *cuando* el cliente B consulta T, *entonces* recibe `404`.
 8. **Bloqueo con conflicto**: *Dado* un turno confirmado dentro de un rango, *cuando* el profesional intenta bloquearlo sin confirmar, *entonces* el sistema lista los conflictos y no crea el bloqueo.
+9. **Persistencia tras reinicio (INV-03)**: *Dado* un turno creado con `POST /api/turnos` (respuesta 201), *cuando* se reinicia el backend, *entonces* `GET /api/turnos` lo devuelve con el mismo `id`, `fecha_hora` y `estado`.
+10. **Atomicidad (INV-03)**: *Dado* un `POST /api/turnos` rechazado con `HORARIO_NO_DISPONIBLE`, *entonces* `GET /api/turnos` no contiene ningún turno nuevo.
+11. **Cancelación persistida (INV-01 + INV-03)**: *Dado* un turno que inicia en 3 h, *cuando* se invoca `POST /api/turnos/{id}/cancelar` y luego se reinicia el backend, *entonces* el turno sigue en `CANCELADO_CLIENTE` y su slot sigue libre; y *dado* uno que inicia en 1 h 59 min, la misma llamada responde `CANCELACION_FUERA_DE_VENTANA` (409) y el turno sigue `CONFIRMADO`.
+
+> En la API de la Fase 2 los criterios 1, 2 y 5 usan los códigos de §11.6 (`HORARIO_NO_DISPONIBLE` y `CANCELACION_FUERA_DE_VENTANA`). Los criterios 3 y 4 se aplican con el slot atómico de §11.2: reservar dos `fecha_hora` distintas es válido. Los criterios 6, 7 y 8 pertenecen al modelo completo de §4 y quedan fuera de la Fase 2.
 
 ---
 
@@ -363,8 +396,11 @@ Alcance: el `PROFESIONAL` ve solo las suyas; el `ADMIN` ve las globales y por pr
 | D-01 | ¿Un cliente puede tener límite de turnos activos simultáneos? | Sin límite en MVP |
 | D-02 | ¿Los Profesionales pueden ser dados de alta por auto-registro? | No, solo vía `ADMIN` |
 | D-03 | ¿Política de cancelaciones reiteradas / penalización? | Fuera del MVP |
-| D-04 | Stack tecnológico y motor de BD (requiere soporte de exclusión de rangos) | PostgreSQL |
+| D-04 | Stack tecnológico y motor de BD (requiere soporte de exclusión de rangos) | **Resuelta para la Fase 2**: Python + FastAPI y SQLite (`turnos.db`). SQLite no tiene `EXCLUDE USING gist`; RN-02 admite como alternativa "transacción con bloqueo + índice único equivalente", que en la Fase 2 se implementa con un **índice único parcial** sobre `fecha_hora` donde `estado = 'CONFIRMADO'` (§11.7). PostgreSQL queda como destino de producción. |
 | D-05 | ¿Confirmación automática o aprobación manual del profesional? | Automática |
+| D-06 | ¿Cómo se identifica al actor en la Fase 2, si F-01 (login) no está implementada? | **Resuelta para la Fase 2**: no hay actores ni autenticación. El cliente se describe con `cliente_nombre` y `cliente_email` en el propio turno. RBAC-01/02/04 quedan sin garantía hasta implementar F-01. `GET /api/turnos` devuelve todos los turnos. |
+| D-07 | El contrato de la Fase 2 solo cubre turnos. El frontend también necesita catálogo (F-02) y disponibilidad (F-03). ¿Cómo los obtiene? | **Resuelta para la Fase 2**: no hay endpoints de catálogo ni de disponibilidad. `servicio` es texto libre en el turno y la disponibilidad de un horario se conoce al reservar (`HORARIO_NO_DISPONIBLE`) o consultando `GET /api/turnos`. F-02 y F-03 quedan para una fase posterior. |
+| D-08 | ¿Cómo se cargan los `Usuario`, `Servicio`, `HorarioLaboral` y `Bloqueo` en `turnos.db`, ya que ningún endpoint de §11 los crea? | **No aplica en la Fase 2**: con la tabla única `turnos` no hay entidades que precargar; el backend crea la tabla al iniciar. Un seed de las 6 entidades de §4.1 se retoma si se vuelve al modelo completo. |
 
 ---
 
@@ -377,3 +413,122 @@ Alcance: el `PROFESIONAL` ve solo las suyas; el `ADMIN` ve las globales y por pr
 | RN-03 | — | Criterio 6 |
 | RBAC-02 | — | Criterio 7 |
 | RN-05 | — | Criterio 8 |
+| INV-03 | — | Criterios 9, 10, 11 |
+| §11 (contrato REST) | `backend/main.py` | Criterios 1, 2, 5, 9–11 y los de `backend/test_main.py` |
+
+---
+
+## 11. Contrato de API REST (Fase 2)
+
+Gobierna la comunicación entre Frontend y Backend. El Backend DEBE implementar exactamente este contrato; el Frontend NO DEBE depender de nada que no figure aquí.
+
+> **Alcance de la Fase 2 (v0.3.0).** La Fase 2 trabaja con un **modelo simplificado de un único recurso**: una tabla `turnos`, sin entidades `Usuario`, `Servicio`, `HorarioLaboral` ni `Bloqueo`. El modelo completo de §4 sigue siendo el objetivo del producto, pero **no** se persiste en la Fase 2. Donde §3 menciona al profesional, a bloqueos o al horario laboral, esas verificaciones quedan fuera de la Fase 2.
+
+### 11.1 Convenciones
+
+- Base: `http://localhost:8000`. Prefijo `/api`. Formato `application/json`, UTF-8.
+- Instantes (`fecha_hora`) en ISO 8601 UTC, p. ej. `2026-11-04T13:00:00Z` (RN-04). Se aceptan también offsets (`-03:00`) y se normalizan a UTC. Una fecha sin zona horaria es `FECHA_INVALIDA`.
+- Los instantes se truncan al segundo (se descartan los microsegundos) antes de comparar y guardar: `10:00:00.789` y `10:00:00` son el mismo slot (INV-02). Una fecha solo con día (`2030-01-01`) no tiene zona horaria y es `FECHA_INVALIDA`.
+- El servidor calcula `id` (UUID v4) y `estado`. El cliente NO DEBE enviarlos; si el cuerpo de `POST /api/turnos` incluye cualquier campo no definido en §11.4 (p. ej. `id` o `estado`), se rechaza con `422` (error de forma de Pydantic).
+- El backend DEBE habilitar CORS con `allow_origins=["*"]`.
+- Error: cuerpo `{ "detail": { "code": "<§11.6>", "message": "<texto>" } }` con el HTTP de §11.6. Los errores de validación de forma (campos ausentes o con tipo incorrecto) los produce Pydantic con HTTP `422` y el formato estándar de FastAPI (`detail` como lista).
+- Sin autenticación (D-06): la API no identifica al actor.
+
+### 11.2 Modelo `Turno` (tabla `turnos`)
+
+| Campo | Tipo | Restricciones |
+|---|---|---|
+| `id` | UUID v4 (`TEXT`) | PK. Generado por el servidor. |
+| `cliente_nombre` | texto | 2–100 caracteres tras `trim`. |
+| `cliente_email` | texto | Email válido (RFC 5322 simplificado), en minúsculas. |
+| `servicio` | texto | 1–100 caracteres tras `trim`. Texto libre (D-07). |
+| `fecha_hora` | timestamp UTC (`TEXT` `YYYY-MM-DDTHH:MM:SSZ`) | Instante de **inicio** del turno. Estrictamente futuro al crear. |
+| `estado` | enum | `CONFIRMADO` \| `CANCELADO_CLIENTE`. |
+
+El turno no tiene duración: ocupa el instante `fecha_hora` como un slot atómico. Dos turnos `CONFIRMADO` con el mismo `fecha_hora` colisionan (INV-02).
+
+### 11.3 `GET /api/turnos` — listar turnos
+
+| Aspecto | Valor |
+|---|---|
+| Request | Sin cuerpo ni parámetros. |
+| Éxito | `200` con un arreglo de objetos `Turno`, ordenado por `fecha_hora` ascendente. Incluye todos los estados (el historial es inmutable, RN-06). Arreglo vacío si no hay turnos. |
+| Idempotencia | Seguro e idempotente; no modifica estado. |
+
+### 11.4 `POST /api/turnos` — crear reserva
+
+| Aspecto | Valor |
+|---|---|
+| Request | `{ "cliente_nombre": texto, "cliente_email": texto, "servicio": texto, "fecha_hora": ISO-8601 }` |
+| Éxito | `201` con el objeto `Turno` creado, `estado = "CONFIRMADO"`. Cabecera `Location: /api/turnos/{id}`. |
+| Reglas | **INV-02**: si ya existe un turno `CONFIRMADO` con el mismo `fecha_hora`, no se inserta nada. RN-03 (nombre y email), RN-04 (futuro, UTC). INV-03. |
+| Atomicidad | La unicidad de `fecha_hora` entre turnos `CONFIRMADO` la garantiza la base con un índice único parcial; una validación solo en la aplicación no es suficiente (RN-02). |
+
+Errores:
+
+| Código | HTTP | Condición |
+|---|---|---|
+| `HORARIO_NO_DISPONIBLE` | 409 | Ya existe un turno `CONFIRMADO` en ese `fecha_hora` (INV-02). |
+| `FECHA_INVALIDA` | 422 | `fecha_hora` no es ISO 8601 válido o no es estrictamente futura (RN-04). |
+| (Pydantic) | 422 | Campos ausentes, tipos incorrectos, nombre/email/servicio fuera de rango o con formato inválido. |
+
+### 11.5 `POST /api/turnos/{id}/cancelar` — cancelar reserva
+
+| Aspecto | Valor |
+|---|---|
+| Path | `id`: UUID del `Turno`. |
+| Request | Sin cuerpo. |
+| Éxito | `200` con el `Turno` actualizado: `estado = "CANCELADO_CLIENTE"`. El turno NO se elimina (RN-06). |
+| Reglas | **INV-01**: se calcula `fecha_hora − ahora` (UTC, reloj del servidor). Si faltan **menos de 2 horas**, se rechaza. Con **exactamente 2 horas o más** se cancela. INV-03. |
+
+Errores:
+
+| Código | HTTP | Condición |
+|---|---|---|
+| `CANCELACION_FUERA_DE_VENTANA` | 409 | Faltan menos de 2 h para `fecha_hora` (INV-01), incluido un turno cuyo horario ya pasó. |
+| `TURNO_NO_CANCELABLE` | 409 | El turno ya no está `CONFIRMADO` (RN-06). |
+| `TURNO_NO_ENCONTRADO` | 404 | No existe un turno con ese `id`. |
+
+### 11.6 Catálogo de errores de la API de la Fase 2
+
+Estos códigos reemplazan, **solo en la API de la Fase 2**, a los equivalentes de §7:
+
+| Código Fase 2 | HTTP | Equivalente en §7 | Origen |
+|---|---|---|---|
+| `HORARIO_NO_DISPONIBLE` | 409 | `SLOT_UNAVAILABLE` | INV-02 |
+| `CANCELACION_FUERA_DE_VENTANA` | 409 | `CANCELLATION_WINDOW_EXPIRED` | INV-01 |
+| `TURNO_NO_CANCELABLE` | 409 | `INVALID_STATE_TRANSITION` | RN-06 |
+| `TURNO_NO_ENCONTRADO` | 404 | `NOT_FOUND` | — |
+| `FECHA_INVALIDA` | 422 | `INVALID_TIME_RANGE` | RN-04 |
+
+El estado `CANCELADO_CLIENTE` es el valor de §4.1 `CANCELADO` cuando quien cancela es el cliente (la Fase 2 no tiene otros actores).
+
+### 11.7 Mapeo de persistencia (SQLite · `turnos.db`)
+
+Una sola tabla, creada automáticamente al iniciar el servidor:
+
+```sql
+CREATE TABLE IF NOT EXISTS turnos (
+    id             TEXT PRIMARY KEY,
+    cliente_nombre TEXT NOT NULL,
+    cliente_email  TEXT NOT NULL,
+    servicio       TEXT NOT NULL,
+    fecha_hora     TEXT NOT NULL,
+    estado         TEXT NOT NULL CHECK (estado IN ('CONFIRMADO', 'CANCELADO_CLIENTE'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_turnos_slot_confirmado
+    ON turnos (fecha_hora) WHERE estado = 'CONFIRMADO';
+```
+
+- Correspondencia de tipos: UUID → `TEXT`; timestamp UTC → `TEXT` ISO 8601 de formato fijo `YYYY-MM-DDTHH:MM:SSZ` (comparable cronológicamente como texto); enum → `TEXT` con `CHECK`.
+- El índice único parcial refuerza INV-02 en la base: un segundo `CONFIRMADO` en el mismo `fecha_hora` falla aunque dos solicitudes lleguen a la vez. Un turno `CANCELADO_CLIENTE` libera el slot (RN-02).
+- Sin borrado físico desde la API (RN-06).
+
+### 11.8 Cliente de referencia (`reservas.html`)
+
+Página estática sin dependencias que consume únicamente los tres endpoints de §11 (reservar, listar, cancelar). Sirve para probar el contrato en local: se abre directamente desde el disco (`file://`, permitido por el CORS de §11.1) con el backend en `http://localhost:8000`; otra base se indica con `?api=<url>`.
+
+- Convierte la fecha local del formulario a ISO 8601 UTC con zona (`toISOString()`), como exige §11.1.
+- Muestra `detail.code` y `detail.message` de los errores de dominio y los errores de forma (`detail` como lista).
+- No guarda turnos localmente: tras cada operación vuelve a leer `GET /api/turnos` (INV-03, fuente única de verdad).
+- No reemplaza a `index.html`, que sigue siendo el prototipo en memoria del modelo completo (tareas 12.1 a 12.3 siguen pendientes).
