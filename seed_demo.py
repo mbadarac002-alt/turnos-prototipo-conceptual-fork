@@ -10,9 +10,11 @@ import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 
-import main
+from app import config, tiempo
+from app.datos import esquema
+from app.datos.conexion import write_tx
 
-main.init_db()
+esquema.init_db()
 now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
 today = now.replace(hour=0, minute=0)
 
@@ -26,8 +28,8 @@ def ahead(minutes: int) -> datetime:  # "ahora + X", redondeado hacia arriba a l
     return t + timedelta(minutes=(-t.minute) % 15)
 
 
-DURATION = {sid: m for (sid, _p, _n, _d, m, _pr) in main.SEED_SERVICES}
-PROF = {sid: p for (sid, p, *_rest) in main.SEED_SERVICES}
+DURATION = {sid: m for (sid, _p, _n, _d, m, _pr) in esquema.SEED_SERVICES}
+PROF = {sid: p for (sid, p, *_rest) in esquema.SEED_SERVICES}
 
 # (n, cliente, servicio, inicio, estado, cancelado_por, motivo)
 TURNOS = [
@@ -48,18 +50,18 @@ TURNOS = [
     (15, "c1", "s2", day(3, 15, 30), "CONFIRMADO", None, None),
 ]
 
-with main.write_tx() as conn:
+with write_tx() as conn:
     existing = conn.execute("SELECT COUNT(*) FROM turno").fetchone()[0]
     if existing and "--reset" not in sys.argv:
         sys.exit(f"Ya hay {existing} turnos. Usá --reset para reemplazarlos.")
     conn.execute("DELETE FROM turno")
-    created = main.fmt(now - timedelta(days=5))
+    created = tiempo.fmt(now - timedelta(days=5))
     for n, cliente, svc, inicio, estado, by, motivo in TURNOS:
         conn.execute(
             "INSERT INTO turno (id, cliente_id, profesional_id, servicio_id, inicio, fin, estado,"
             " motivo_cancelacion, cancelado_por_id, creado_en, actualizado_en) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (str(uuid.uuid5(uuid.NAMESPACE_DNS, f"turno-demo-{n}")), cliente, PROF[svc], svc, main.fmt(inicio),
-             main.fmt(inicio + timedelta(minutes=DURATION[svc])), estado, motivo, by, created, created),
+            (str(uuid.uuid5(uuid.NAMESPACE_DNS, f"turno-demo-{n}")), cliente, PROF[svc], svc, tiempo.fmt(inicio),
+             tiempo.fmt(inicio + timedelta(minutes=DURATION[svc])), estado, motivo, by, created, created),
         )
-        print(f"t{n:<2} {estado:<10} {cliente} {svc} {main.fmt(inicio)}")
-print(f"\n{len(TURNOS)} turnos cargados en {main.DB_PATH}")
+        print(f"t{n:<2} {estado:<10} {cliente} {svc} {tiempo.fmt(inicio)}")
+print(f"\n{len(TURNOS)} turnos cargados en {config.DB_PATH}")

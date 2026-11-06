@@ -19,7 +19,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-import main
+from app import config
+from app.api import esquemas
+from app.datos import esquema
+from main import app
 
 RAIZ = Path(__file__).resolve().parent.parent
 HTML = (RAIZ / "prototipo-turnos.html").read_text(encoding="utf-8")
@@ -28,8 +31,8 @@ NODE = shutil.which("node")
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(main, "DB_PATH", tmp_path / "turnos_test.db")
-    with TestClient(main.app) as c:
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "turnos_test.db")
+    with TestClient(app) as c:
         yield c
 
 
@@ -45,14 +48,14 @@ def test_las_rutas_que_usa_el_frontend_existen_en_la_api():
     rutas = {a or b for a, b in usadas}
     rutas = {re.sub(r"\$\{\w+\}", "{turno_id}", r) for r in rutas}
     assert rutas == {"/api/turnos", "/api/turnos/{turno_id}/cancelar"}
-    assert rutas <= set(main.app.openapi()["paths"])
+    assert rutas <= set(app.openapi()["paths"])
 
 
 def test_los_campos_que_lee_el_frontend_los_devuelve_la_api():
     bloque = re.search(r"const turnoFromApi = .*?\n\}\);", HTML, re.S).group(0)
     leidos = set(re.findall(r"\bt\.(\w+)", bloque))
     assert leidos, "no se encontraron campos en turnoFromApi"
-    assert leidos <= set(main.TurnoOut.model_fields)
+    assert leidos <= set(esquemas.TurnoOut.model_fields)
 
 
 def test_los_campos_que_envia_el_frontend_los_acepta_la_api():
@@ -60,22 +63,22 @@ def test_los_campos_que_envia_el_frontend_los_acepta_la_api():
     cancelar = re.search(r"cancelar`, \{(.*?)\}\)", HTML).group(1)
     enviados_reserva = set(re.findall(r"(\w+):", reserva))
     enviados_cancelar = set(re.findall(r"(\w+):", cancelar))
-    assert enviados_reserva == set(main.TurnoCreate.model_fields)
-    assert enviados_cancelar == set(main.CancelarIn.model_fields)
+    assert enviados_reserva == set(esquemas.TurnoCreate.model_fields)
+    assert enviados_cancelar == set(esquemas.CancelarIn.model_fields)
 
 
 def test_los_ids_de_la_semilla_coinciden_con_el_frontend():
     usuarios = set(re.findall(r"\{ id: '(\w+)', role: '(\w+)', nombre: '([^']+)'", HTML))
-    esperados = {(i, r, n) for (i, r, n, *_resto) in main.SEED_USERS}
+    esperados = {(i, r, n) for (i, r, n, *_resto) in esquema.SEED_USERS}
     assert usuarios == esperados
 
     servicios = set(re.findall(r"\{ id: '(s\d+)', profesionalId: '(\w+)', nombre: '([^']+)'.*?duracionMin: (\d+)", HTML))
-    esperados = {(i, p, n, str(m)) for (i, p, n, _d, m, _pr) in main.SEED_SERVICES}
+    esperados = {(i, p, n, str(m)) for (i, p, n, _d, m, _pr) in esquema.SEED_SERVICES}
     assert servicios == esperados
 
 
 def test_el_frontend_conoce_todos_los_codigos_de_error_del_backend():
-    fuente = Path(main.__file__).read_text(encoding="utf-8")
+    fuente = "\n".join(f.read_text(encoding="utf-8") for f in Path(config.RAIZ, "app").rglob("*.py"))
     codigos = set(re.findall(r'DomainError\(\s*\d+,\s*"([A-Z_]+)"', fuente)) | {"INVALID_REQUEST"}
     conocidos = set(re.findall(r"\b([A-Z][A-Z_]{4,}):\s*\d+", re.search(r"const HTTP = \{.*?\};", HTML, re.S).group(0)))
     assert codigos <= conocidos, f"El frontend no conoce: {codigos - conocidos}"

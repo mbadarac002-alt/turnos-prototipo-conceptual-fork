@@ -1,0 +1,52 @@
+{
+  "_comentario": "Mock estático equivalente a makeInitialState() de index.html. Fechas absolutas (offset -03:00) con 'ahora' = 2026-11-04T07:30:00-03:00 (miércoles). Duraciones en minutos; horarios laborales en minutos desde 00:00; dias_semana: 0=domingo ... 6=sábado.",
+  "ahora": "2026-11-04T07:30:00-03:00",
+
+  "usuarios": [
+    { "id": "admin", "rol": "ADMIN",       "nombre_completo": "Admin General",     "email": "admin@turnospro.test", "telefono": "+5491100000000", "email_verificado": true },
+    { "id": "p1",    "rol": "PROFESIONAL", "nombre_completo": "Dra. Ana Martínez", "email": "ana@turnospro.test",   "telefono": "+5491100000001", "email_verificado": true },
+    { "id": "p2",    "rol": "PROFESIONAL", "nombre_completo": "Dr. Bruno Salas",   "email": "bruno@turnospro.test", "telefono": "+5491100000002", "email_verificado": true },
+    { "id": "p3",    "rol": "PROFESIONAL", "nombre_completo": "Lic. Carla Ibáñez", "email": "carla@turnospro.test", "telefono": "+5491100000003", "email_verificado": true },
+    { "id": "c1",    "rol": "CLIENTE",     "nombre_completo": "Lucía Fernández",   "email": "lucia@mail.test",      "telefono": "+5491155550101", "email_verificado": true },
+    { "id": "c2",    "rol": "CLIENTE",     "nombre_completo": "Martín Gómez",      "email": "martin@mail.test",     "telefono": "+5491155550102", "email_verificado": false },
+    { "id": "c3",    "rol": "CLIENTE",     "nombre_completo": "Sofía Ruiz",        "email": "sofia@mail.test",      "telefono": "+5491155550103", "email_verificado": true }
+  ],
+
+  "servicios": [
+    { "id": "s1", "profesional_id": "p1", "nombre": "Consulta general",     "descripcion": "Evaluación clínica y orientación.",        "duracion_min": 30, "precio_referencia": 18000, "activo": true },
+    { "id": "s2", "profesional_id": "p1", "nombre": "Control anual",        "descripcion": "Chequeo completo con estudios básicos.",   "duracion_min": 60, "precio_referencia": 32000, "activo": true },
+    { "id": "s3", "profesional_id": "p2", "nombre": "Sesión de terapia",    "descripcion": "Sesión individual.",                       "duracion_min": 45, "precio_referencia": 25000, "activo": true },
+    { "id": "s4", "profesional_id": "p2", "nombre": "Evaluación inicial",   "descripcion": "Primera entrevista y plan de trabajo.",    "duracion_min": 60, "precio_referencia": 30000, "activo": true },
+    { "id": "s5", "profesional_id": "p3", "nombre": "Asesoría nutricional", "descripcion": "Seguimiento y ajustes.",                   "duracion_min": 30, "precio_referencia": 15000, "activo": true },
+    { "id": "s6", "profesional_id": "p3", "nombre": "Plan alimentario",     "descripcion": "Diseño de plan personalizado.",            "duracion_min": 45, "precio_referencia": 22000, "activo": true }
+  ],
+
+  "horarios_laborales": [
+    { "profesional_id": "p1", "dias_semana": [1, 2, 3, 4, 5], "rangos": [[540, 780], [840, 1080]] },
+    { "profesional_id": "p2", "dias_semana": [1, 2, 3, 4, 5], "rangos": [[600, 840], [900, 1140]] },
+    { "profesional_id": "p3", "dias_semana": [1, 2, 3, 4, 5], "rangos": [[540, 780]] }
+  ],
+
+  "turnos": [
+    { "id": "t1",  "cliente_id": "c1", "profesional_id": "p1", "servicio_id": "s1", "inicio": "2026-10-30T09:00:00-03:00", "fin": "2026-10-30T09:30:00-03:00", "estado": "COMPLETADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null },
+    { "id": "t2",  "cliente_id": "c3", "profesional_id": "p1", "servicio_id": "s2", "inicio": "2026-10-30T10:00:00-03:00", "fin": "2026-10-30T11:00:00-03:00", "estado": "COMPLETADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null },
+    { "id": "t3",  "cliente_id": "c1", "profesional_id": "p2", "servicio_id": "s3", "inicio": "2026-11-02T10:00:00-03:00", "fin": "2026-11-02T10:45:00-03:00", "estado": "COMPLETADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null },
+    { "id": "t4",  "cliente_id": "c3", "profesional_id": "p3", "servicio_id": "s5", "inicio": "2026-11-02T11:00:00-03:00", "fin": "2026-11-02T11:30:00-03:00", "estado": "AUSENTE",    "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null },
+    { "id": "t5",  "cliente_id": "c2", "profesional_id": "p1", "servicio_id": "s1", "inicio": "2026-11-03T09:30:00-03:00", "fin": "2026-11-03T10:00:00-03:00", "estado": "COMPLETADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null },
+    { "id": "t6",  "cliente_id": "c1", "profesional_id": "p2", "servicio_id": "s4", "inicio": "2026-11-03T15:00:00-03:00", "fin": "2026-11-03T16:00:00-03:00", "estado": "CANCELADO",  "motivo_cancelacion": null, "cancelado_por_id": "c1", "cancelado_por_rol": "CLIENTE" },
+    { "id": "t7",  "cliente_id": "c3", "profesional_id": "p3", "servicio_id": "s6", "inicio": "2026-11-03T10:00:00-03:00", "fin": "2026-11-03T10:45:00-03:00", "estado": "CANCELADO",  "motivo_cancelacion": "Imprevisto médico", "cancelado_por_id": "p3", "cancelado_por_rol": "PROFESIONAL" },
+    { "id": "t8",  "cliente_id": "c1", "profesional_id": "p1", "servicio_id": "s1", "inicio": "2026-11-04T09:30:00-03:00", "fin": "2026-11-04T10:00:00-03:00", "estado": "CONFIRMADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null, "_nota": "En exactamente 2 h: límite de RN-01 (cancelable)" },
+    { "id": "t9",  "cliente_id": "c3", "profesional_id": "p3", "servicio_id": "s5", "inicio": "2026-11-04T10:30:00-03:00", "fin": "2026-11-04T11:00:00-03:00", "estado": "CONFIRMADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null, "_nota": "En 3 h" },
+    { "id": "t10", "cliente_id": "c2", "profesional_id": "p2", "servicio_id": "s3", "inicio": "2026-11-04T11:00:00-03:00", "fin": "2026-11-04T11:45:00-03:00", "estado": "CONFIRMADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null },
+    { "id": "t11", "cliente_id": "c1", "profesional_id": "p1", "servicio_id": "s2", "inicio": "2026-11-04T15:00:00-03:00", "fin": "2026-11-04T16:00:00-03:00", "estado": "CONFIRMADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null },
+    { "id": "t12", "cliente_id": "c3", "profesional_id": "p1", "servicio_id": "s1", "inicio": "2026-11-05T10:00:00-03:00", "fin": "2026-11-05T10:30:00-03:00", "estado": "CONFIRMADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null },
+    { "id": "t13", "cliente_id": "c1", "profesional_id": "p2", "servicio_id": "s4", "inicio": "2026-11-05T11:00:00-03:00", "fin": "2026-11-05T12:00:00-03:00", "estado": "CONFIRMADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null },
+    { "id": "t14", "cliente_id": "c2", "profesional_id": "p3", "servicio_id": "s5", "inicio": "2026-11-06T09:00:00-03:00", "fin": "2026-11-06T09:30:00-03:00", "estado": "CONFIRMADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null },
+    { "id": "t15", "cliente_id": "c1", "profesional_id": "p1", "servicio_id": "s2", "inicio": "2026-11-09T15:30:00-03:00", "fin": "2026-11-09T16:30:00-03:00", "estado": "CONFIRMADO", "motivo_cancelacion": null, "cancelado_por_id": null, "cancelado_por_rol": null }
+  ],
+
+  "bloqueos": [
+    { "id": "b1", "profesional_id": "p1", "inicio": "2026-11-05T12:00:00-03:00", "fin": "2026-11-05T13:00:00-03:00", "motivo": "Trámite personal" },
+    { "id": "b2", "profesional_id": "p2", "inicio": "2026-11-06T10:00:00-03:00", "fin": "2026-11-06T19:00:00-03:00", "motivo": "Capacitación" }
+  ]
+}

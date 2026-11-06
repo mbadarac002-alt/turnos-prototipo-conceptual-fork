@@ -8,11 +8,13 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-import main
+from app import config, tiempo
+from app.datos import esquema
+from main import app
 
-REAL_DB = main.DB_PATH  # ruta de la base real, solo para verificar que no se toca
+REAL_DB = config.DB_PATH  # ruta de la base real, solo para verificar que no se toca
 
-# Datos de la semilla (main.SEED_USERS / SEED_SERVICES)
+# Datos de la semilla (esquema.SEED_USERS / SEED_SERVICES)
 CLIENTE_1, CLIENTE_3 = "c1", "c3"      # ambos con email verificado
 SERVICIO_30MIN = "s1"                   # profesional p1, 30 min
 
@@ -31,9 +33,9 @@ def iso(dt: datetime) -> str:
 def client(tmp_path, monkeypatch):
     """TestClient sobre una base SQLite temporal, creada y sembrada por el lifespan de la app."""
     db_temporal = tmp_path / "turnos_test.db"
-    monkeypatch.setattr(main, "DB_PATH", db_temporal)
-    assert main.DB_PATH != REAL_DB
-    with TestClient(main.app) as c:  # el `with` ejecuta el lifespan (init_db)
+    monkeypatch.setattr(config, "DB_PATH", db_temporal)
+    assert config.DB_PATH != REAL_DB
+    with TestClient(app) as c:  # el `with` ejecuta el lifespan (init_db)
         yield c
     assert db_temporal.exists()
 
@@ -93,7 +95,7 @@ def test_cancelar_a_45_minutos_es_rechazado(client, monkeypatch):
     inicio = proximo_slot(timedelta(hours=3))
     turno = crear(client, inicio).json()
     ahora_simulado = inicio - timedelta(minutes=45)
-    monkeypatch.setattr(main, "utcnow", lambda: ahora_simulado)
+    monkeypatch.setattr(tiempo, "utcnow", lambda: ahora_simulado)
 
     resp = cancelar(client, turno["id"])
 
