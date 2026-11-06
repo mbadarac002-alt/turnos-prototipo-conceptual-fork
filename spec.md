@@ -493,11 +493,11 @@ Suite `pytest` en `tests/test_turnos.py` (17 casos: escenarios 1 a 5 de la matri
 
 ### 14.1 Compatibilidad Frontend ↔ Backend
 
-`tests/test_frontend.py` (31 casos en total con la suite anterior). Verifica que `prototipo-turnos.html` y la API se entienden.
+`tests/test_frontend.py` (33 casos en total con la suite anterior). Verifica que `prototipo-turnos.html` y la API se entienden.
 
 | Nivel | Qué valida |
 |---|---|
 | Contrato estático | El HTML usa el puerto del backend; solo llama a rutas que existen; lee de la respuesta únicamente campos de `TurnoOut`; envía exactamente los campos de `TurnoCreate` y `CancelarIn`; ids de usuarios y servicios idénticos a la semilla; conoce todos los códigos de error y sus status HTTP; CORS permite abrir el HTML desde otro origen (incluido `file://`); `GET /` sirve el HTML. |
-| Integración (`@integracion`) | `tests/frontend_harness.cjs` carga el código **real** del HTML en Node y ejecuta contra un uvicorn propio (base temporal, puerto libre): el primer y último slot de cada servicio que ofrece la UI son aceptados por el backend; reserva y relectura de la lista; errores 409/403/422/404 con su mensaje; cancelación, cancelación repetida e inexistente; backend caído → `API_NO_DISPONIBLE`. |
+| Integración (`@integracion`) | `tests/frontend_harness.cjs` carga el código **real** del HTML en Node y ejecuta contra un uvicorn propio (base temporal, puerto libre): el primer y último slot de cada servicio que ofrece la UI son aceptados por el backend; reserva y relectura de la lista; errores 409/403/422/404 con su mensaje; cancelación, cancelación repetida e inexistente, cancelación tardía (`CANCELLATION_WINDOW_EXPIRED`) y cancelación del administrador con motivo, acciones sin endpoint (`BACKEND_PENDIENTE`); backend caído → `API_NO_DISPONIBLE`. |
 
 Ejecución: `python -m pytest` (todo, ~3,5 s) o `python -m pytest -m "not integracion"` (~1,5 s, sin Node). Requiere Node.js para el nivel de integración; sin Node esas pruebas se omiten.

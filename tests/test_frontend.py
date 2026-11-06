@@ -180,7 +180,27 @@ def test_el_frontend_cancela_y_muestra_los_errores_de_cancelacion(resultado_fron
     assert (r["cancelAdminSinMotivo"]["code"], r["cancelAdminSinMotivo"]["http"]) == ("INVALID_REQUEST", 422)
     assert (r["cancelRepetido"]["code"], r["cancelRepetido"]["http"]) == ("INVALID_STATE_TRANSITION", 409)
     assert (r["cancelInexistente"]["code"], r["cancelInexistente"]["http"]) == ("NOT_FOUND", 404)
-    assert r["listaFinal"] == 13  # cancelar no elimina el turno (RN-06)
+    assert r["listaFinal"] == 14  # 12 de slots + 1 reserva + 1 tardía: cancelar no elimina turnos (RN-06)
+
+
+@integracion
+def test_el_frontend_muestra_el_bloqueo_de_cancelacion_tardia_y_el_admin_puede_cancelar(resultado_frontend):
+    r = resultado_frontend
+    assert r["reservaTardia"]["ok"], r["reservaTardia"]  # a ~75 min se puede reservar (RN-04: >= 1 h)
+    tarde = r["cancelTardioCliente"]
+    assert (tarde["code"], tarde["http"]) == ("CANCELLATION_WINDOW_EXPIRED", 409)  # INV-01
+    assert tarde["message"]
+    admin = r["cancelTardioAdmin"]
+    assert admin["ok"] and admin["estado"] == "CANCELADO"
+    assert (admin["motivo"], admin["canceladoPor"], admin["canceladoRol"]) == ("Imprevisto del profesional", "admin", "ADMIN")
+    assert admin["efectos"] == {"audit": 1, "emails": 1}
+
+
+@integracion
+def test_el_frontend_avisa_que_completar_y_ausente_aun_no_tienen_endpoint(resultado_frontend):
+    r = resultado_frontend
+    for clave in ("completarPendiente", "ausentePendiente"):
+        assert (r[clave]["code"], r[clave]["http"]) == ("BACKEND_PENDIENTE", 501), clave
 
 
 @integracion

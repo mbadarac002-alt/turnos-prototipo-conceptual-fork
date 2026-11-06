@@ -85,6 +85,25 @@ function correrEfectos(state, r) {
   out.cancelRepetido = resumenError(await D.cancelAppointment(state, { actor: actor('c1'), turnoId: id, motivo: '' }));
   out.cancelInexistente = resumenError(await D.cancelAppointment(state, { actor: actor('c1'), turnoId: 'no-existe', motivo: '' }));
 
+  // 4b) Cancelación tardía (INV-01): un turno a ~75-90 min es reservable (RN-04 pide >= 1 h) pero no cancelable por el cliente.
+  const grilla = 15 * 60000;
+  const proximo = Math.ceil((Date.now() + 75 * 60000) / grilla) * grilla;
+  const tardio = await D.bookAppointment(state, { actor: actor('c3'), clienteId: 'c3', servicioId: 's5', inicio: proximo });
+  out.reservaTardia = { ok: !!tardio.ok, error: resumenError(tardio) };
+  if (tardio.ok) {
+    const idTardio = tardio.data.turno.id;
+    out.cancelTardioCliente = resumenError(await D.cancelAppointment(state, { actor: actor('c3'), turnoId: idTardio, motivo: '' }));
+    // El administrador sí puede cancelar fuera de la ventana si indica un motivo (HU-07).
+    const porAdmin = await D.cancelAppointment(state, { actor: actor('admin'), turnoId: idTardio, motivo: 'Imprevisto del profesional' });
+    const t = porAdmin.turnos?.find((x) => x.id === idTardio);
+    out.cancelTardioAdmin = { ok: !!porAdmin.ok, estado: t?.estado, motivo: t?.motivo, canceladoPor: t?.canceladoPor, canceladoRol: t?.canceladoRol,
+      efectos: correrEfectos(state, porAdmin) };
+  }
+
+  // 4c) Acciones de la vista Administrador que todavía no tienen endpoint (la UI debe avisarlo, no fallar)
+  out.completarPendiente = resumenError(await D.completeAppointment(state, { actor: actor('admin'), turnoId: id }));
+  out.ausentePendiente = resumenError(await D.markNoShow(state, { actor: actor('admin'), turnoId: id }));
+
   // 5) Backend caído: la UI debe poder mostrar un error claro
   const caido = new Function(`${fuente.replace(JSON.stringify(backend), JSON.stringify('http://127.0.0.1:9'))}\nreturn { callApi };`)();
   out.backendCaido = resumenError(await caido.callApi('/api/turnos', {}));
